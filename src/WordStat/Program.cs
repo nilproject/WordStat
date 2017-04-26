@@ -1,0 +1,130 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Text;
+using WordStatCore;
+
+namespace WordStat
+{
+    class Program
+    {
+        private static readonly char[] charsToRemove = new[] { '\r', '\n', '\t', ' ', '.', ',', '!', '?', '-', '–', '<', '>', '(', ')', '[', ']', '{', '}', '<', '>', ':', '"', '\'' };
+
+        static void Main(string[] args)
+        {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
+            var engine = new Engine(2);
+
+            engine.AddSynonims(new[] { new[] { "идти", "итти" } });
+            engine.AddNoiseWords(new[]
+            {
+                "с",
+                "на",
+                "в",
+                "из",
+                "под",
+                "вне",
+                "без",
+                "ещё",
+                "как",
+                "почти",
+                "бы",
+                "не",
+                "ну",
+                "и",
+                "или",
+                "а"
+            });
+
+            var sw = Stopwatch.StartNew();
+            foreach (var fileName in Directory.EnumerateFiles(".", "*.txt", SearchOption.AllDirectories))
+            {
+                learnOn(engine, fileName);
+            }
+            sw.Stop();
+            Console.Title = sw.Elapsed.ToString();
+
+            for (;;)
+            {
+                string request;
+                KeyValuePair<string, double>[] result = null;
+
+                Console.Write("Enter word: ");
+                request = Console.ReadLine().Trim().ToLowerInvariant();
+
+                //CollocationDirection direction = CollocationDirection.Both;
+
+                if (string.IsNullOrEmpty(request))
+                    continue;
+
+                //if (request[0] == '<')
+                //{
+                //    direction = CollocationDirection.Left;
+                //    request = request.Substring(1);
+                //}
+                //else if (request[0] == '>')
+                //{
+                //    direction = CollocationDirection.Right;
+                //    request = request.Substring(1);
+                //}
+
+                var words = request.Split(' ').Select(x => x.ToLower()).ToArray();
+                try
+                {
+                    if (words.Length == 1)
+                    {
+                        //result = engine.GetWordVector(words[0], false).FrequencyEnvironment();
+                        var word = engine.GetWordVector(request, false);
+                        result = engine.FindSynonyms(word, 10);
+                        Console.WriteLine(word.Length);
+                    }
+                    else if (words.Length == 3)
+                    {
+                        result = engine.FindSynonyms(engine.GetWordVector(words[0], false) - engine.GetWordVector(words[1], false) + engine.GetWordVector(words[2], false), 10);
+                    }
+                    else
+                    {
+                        var temp = engine.GetWordVector(words[0], false);
+
+                        for (var i = 1; i < words.Length; i++)
+                        {
+                            temp += engine.GetWordVector(words[i], false);
+                        }
+
+                        result = engine.FindSynonyms(temp, 10);
+                    }
+                }
+                catch
+                {
+                    Console.WriteLine("Invalid request");
+                    Console.WriteLine();
+                    continue;
+                }
+
+                foreach (var syn in result)
+                {
+                    if (!double.IsNaN(syn.Value))
+                    {
+                        Console.WriteLine(syn);
+                    }
+                }
+
+                Console.WriteLine();
+            }
+        }
+
+        private static void learnOn(Engine engine, string filename)
+        {
+            using (var fileStream = new FileStream(filename, FileMode.Open, FileAccess.Read))
+            using (var input = new StreamReader(fileStream, true))
+            {
+                var filtered = Engine.PreprocessData(input.ReadToEnd());
+
+                engine.LearnOn(filtered);
+            }
+        }
+    }
+}
