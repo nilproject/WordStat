@@ -401,8 +401,7 @@ namespace HabraTopicDownloader
             index = j;
             return true;
         }
-
-        [DebuggerStepThrough]
+        
         private static bool validateString(string code, ref int index)
         {
             int j = index;

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -46,7 +47,14 @@ namespace WordStatCore
 #endif
         }
 
+        private const int InitialSize = 2;
+        private const int MaxAsListSize = 4;
+
         private static readonly Record[] emptyRecords = new Record[0];
+
+        private int _count;
+        private int _eicount;
+        private int _previousIndex;
 
         private Record[] _records = emptyRecords;
         private int[] _existsedIndexes;
@@ -54,18 +62,14 @@ namespace WordStatCore
         private bool _emptyKeyValueExists = false;
         private TValue _emptyKeyValue;
 
-        private int _count;
-        private int _eicount;
-        private int _previousIndex;
-
-        private LinkedList<KeyValuePair<uint, int>> _numberKeysIndexes = null;
+        private int _version;
 
         public StringMap()
         {
             Clear();
         }
 
-        private void insert(string key, TValue value, int hash, bool @throw)
+        private void insert(string key, TValue value, int hash, bool @throw, bool allowIncrease)
         {
             if (key == null)
                 throw new ArgumentNullException("key");
@@ -79,32 +83,86 @@ namespace WordStatCore
                 return;
             }
 
+            int index;
+            int colisionCount = 0;
             var mask = _records.Length - 1;
             if (_records.Length == 0)
                 mask = increaseSize() - 1;
 
-            int index;
-            int colisionCount = 0;
-            index = hash & mask;
-
-            do
+            if (_records.Length <= MaxAsListSize)
             {
-                if (_records[index].hash == hash && string.CompareOrdinal(_records[index].key, key) == 0)
+                for (var i = 0; i < _records.Length; i++)
                 {
-                    if (@throw)
-                        throw new InvalidOperationException("Item already Exists");
-                    _records[index].value = value;
-                    return;
+                    if (_records[i].key == null)
+                    {
+                        _records[i].hash = -1;
+                        _records[i].key = key;
+                        _records[i].value = value;
+
+                        ensureExistedIndexCapacity();
+                        _existsedIndexes[_eicount] = i;
+
+                        _count++;
+                        _eicount++;
+                        return;
+                    }
+
+                    if (string.CompareOrdinal(_records[i].key, key) == 0)
+                    {
+                        if (@throw)
+                            throw new InvalidOperationException("Item already Exists");
+
+                        _records[i].value = value;
+                        return;
+                    }
                 }
 
-                index = _records[index].next - 1;
+                if (_records.Length * 2 <= MaxAsListSize)
+                {
+                    index = _records.Length;
+                    increaseSize();
+
+                    _records[index].hash = -1;
+                    _records[index].key = key;
+                    _records[index].value = value;
+
+                    ensureExistedIndexCapacity();
+                    _existsedIndexes[_eicount] = index;
+
+                    _count++;
+                    _eicount++;
+                    return;
+                }
             }
-            while (index >= 0);
+            else
+            {
+                index = hash & mask;
+                do
+                {
+                    if (_records[index].hash == hash && string.CompareOrdinal(_records[index].key, key) == 0)
+                    {
+                        if (@throw)
+                            throw new InvalidOperationException("Item already Exists");
+
+                        _records[index].value = value;
+                        return;
+                    }
+
+                    index = _records[index].next - 1;
+                }
+                while (index >= 0);
+            }
 
             // не нашли
 
-            if ((_count > 50 && _count * 9 / 5 >= mask) || _count == mask + 1)
-                mask = increaseSize() - 1;
+            if (allowIncrease)
+            {
+                if ((_count == mask + 1)
+                    || (_count > 50 && _count * 8 / 5 >= mask))
+                {
+                    mask = increaseSize() - 1;
+                }
+            }
 
             int prewIndex = -1;
             index = hash & mask;
@@ -116,9 +174,10 @@ namespace WordStatCore
                     index = _records[index].next - 1;
                     colisionCount++;
                 }
+
                 prewIndex = index;
                 while (_records[index].key != null)
-                    index = (index + 61) & mask;
+                    index = (index + 3) & mask;
             }
 
             _records[index].hash = hash;
@@ -127,6 +186,20 @@ namespace WordStatCore
             if (prewIndex >= 0)
                 _records[prewIndex].next = index + 1;
 
+            _version++;
+
+            ensureExistedIndexCapacity();
+
+            _existsedIndexes[_eicount] = index;
+            _eicount++;
+            _count++;
+
+            if (colisionCount > 17 && allowIncrease)
+                increaseSize();
+        }
+
+        private void ensureExistedIndexCapacity()
+        {
             if (_eicount == _existsedIndexes.Length)
             {
                 // Увеличиваем размер массива с занятыми номерами
@@ -134,31 +207,29 @@ namespace WordStatCore
                 Array.Copy(_existsedIndexes, newEI, _existsedIndexes.Length);
                 _existsedIndexes = newEI;
             }
-
-            _existsedIndexes[_eicount++] = index;
-            _count++;
-
-            if (_numberKeysIndexes != null)
-            {
-                tryAddNumberKeyItem(_eicount - 1);
-            }
-
-            if (colisionCount > 17)
-                increaseSize();
         }
 
-#if INLINE
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-#endif
         private static int computeHash(string key)
         {
             unchecked
             {
                 int hash;
                 var keyLen = key.Length;
-                hash = keyLen * 0x55 ^ 0xe5b5e5;
+                int isNumber = int.MinValue & (-keyLen);
+                char c;
+                hash = (int)((uint)keyLen * 0x33) ^ 0xb7b7b7;
+
                 for (var i = 0; i < keyLen; i++)
-                    hash += (hash >> 28) + (hash << 4) + key[i];
+                {
+                    c = key[i];
+                    c -= (char)((uint)((i - 1) & ~(keyLen - 2)) >> 31);
+                    hash += (hash >> 13) + (hash << 7) + c;
+                    isNumber &= ('0' - c - 1) & (c - '9' - 1);
+                }
+
+                hash &= int.MaxValue;
+                hash |= isNumber;
+
                 return hash;
             }
         }
@@ -175,11 +246,38 @@ namespace WordStatCore
                     value = default(TValue);
                     return false;
                 }
+
                 value = _emptyKeyValue;
                 return true;
             }
 
-            var rcount = _records.Length;
+            var previousIndex = _previousIndex;
+            var records = _records;
+            if (records.Length <= MaxAsListSize)
+            {
+                for (var i = 0; i < records.Length; i++)
+                {
+                    if (records[i].key == null)
+                        break;
+
+                    if (string.CompareOrdinal(records[i].key, key) == 0)
+                    {
+                        value = records[i].value;
+                        return true;
+                    }
+                }
+
+                value = default(TValue);
+                return false;
+            }
+
+            if (previousIndex != -1 && string.CompareOrdinal(records[previousIndex].key, key) == 0)
+            {
+                value = records[previousIndex].value;
+                return true;
+            }
+
+            var rcount = records.Length;
 
             if (rcount == 0)
             {
@@ -187,25 +285,19 @@ namespace WordStatCore
                 return false;
             }
 
-            if (_previousIndex != -1 && string.CompareOrdinal(_records[_previousIndex].key, key) == 0)
-            {
-                value = _records[_previousIndex].value;
-                return true;
-            }
-
             int hash = computeHash(key);
             int index = hash & (rcount - 1);
 
             do
             {
-                if (_records[index].hash == hash && string.CompareOrdinal(_records[index].key, key) == 0)
+                if (records[index].hash == hash && string.CompareOrdinal(records[index].key, key) == 0)
                 {
-                    value = _records[index].value;
+                    value = records[index].value;
                     _previousIndex = index;
                     return true;
                 }
 
-                index = _records[index].next - 1;
+                index = records[index].next - 1;
             }
             while (index >= 0);
 
@@ -226,63 +318,102 @@ namespace WordStatCore
             if (key.Length == 0)
             {
                 if (!_emptyKeyValueExists)
-                {
                     return false;
-                }
+
                 _emptyKeyValue = default(TValue);
                 _emptyKeyValueExists = false;
                 return true;
             }
 
+            if (_records.Length <= MaxAsListSize)
+            {
+                var found = false;
+                for (var i = 0; i < _records.Length; i++)
+                {
+                    if (found)
+                    {
+                        _records[i - 1].key = _records[i].key;
+                        _records[i - 1].value = _records[i].value;
+                        _records[i].key = null;
+                        _records[i].value = default(TValue);
+                    }
+                    else if (string.CompareOrdinal(_records[i].key, key) == 0)
+                    {
+                        _count--;
+                        _eicount--;
+                        found = true;
+                        _records[i].key = null;
+                        _records[i].value = default(TValue);
+                    }
+                }
+
+                return found;
+            }
+
             if (_records.Length == 0)
                 return false;
 
-            var elen = _records.Length - 1;
+            var mask = _records.Length - 1;
             int hash = computeHash(key);
             int index;
             int targetIndex = -1;
             int prewIndex;
 
-            for (index = hash & elen; index >= 0; index = _records[index].next - 1)
+            for (index = hash & mask; index >= 0; index = _records[index].next - 1)
             {
-                if (_records[index].hash == hash
-                    && (ReferenceEquals(_records[index].key, key) || string.CompareOrdinal(_records[index].key, key) == 0))
+                if (_records[index].hash == hash && string.CompareOrdinal(_records[index].key, key) == 0)
                 {
                     if (_records[index].next > 0)
                     {
                         prewIndex = targetIndex;
                         targetIndex = index;
                         index = _records[index].next - 1;
+
                         do
                         {
-                            if ((_records[index].hash & elen) >= targetIndex)
+                            if ((_records[index].hash & mask) == targetIndex)
                             {
                                 _records[targetIndex] = _records[index];
                                 _records[targetIndex].next = index + 1;
                                 prewIndex = targetIndex;
                                 targetIndex = index;
                             }
+
                             index = _records[index].next - 1;
                         }
                         while (index >= 0);
+
                         _records[targetIndex].key = null;
                         _records[targetIndex].value = default(TValue);
                         _records[targetIndex].hash = 0;
+
                         if (targetIndex == _previousIndex)
                             _previousIndex = -1;
+
                         if (prewIndex >= 0)
                             _records[prewIndex].next = 0;
+
+                        index = targetIndex;
                     }
                     else
                     {
                         if (index == _previousIndex)
                             _previousIndex = -1;
+
                         _records[index].key = null;
                         _records[index].value = default(TValue);
                         _records[index].hash = 0;
+
                         if (targetIndex >= 0)
                             _records[targetIndex].next = 0;
                     }
+
+                    _count--;
+                    _eicount--;
+
+                    var indexInExIndex = Array.IndexOf(_existsedIndexes, index);
+                    Array.Copy(_existsedIndexes, indexInExIndex + 1, _existsedIndexes, indexInExIndex, _existsedIndexes.Length - indexInExIndex - 1);
+
                     return true;
                 }
 
@@ -297,31 +428,42 @@ namespace WordStatCore
         {
             if (_records.Length == 0)
             {
-                _records = new Record[4];
-                _existsedIndexes = new int[4];
+                _records = new Record[InitialSize];
+                _existsedIndexes = new int[InitialSize];
             }
             else
             {
-                _numberKeysIndexes = null;
                 var oldRecords = _records;
-                _records = new Record[_records.Length << 1];
-                int i = 0, c = _eicount;
+                var newLength = _records.Length << 1;
+                _records = new Record[newLength];
+
+                var i = 0;
+                var c = _eicount;
                 _count = 0;
                 _eicount = 0;
                 for (; i < c; i++)
                 {
                     var index = _existsedIndexes[i];
                     if (oldRecords[index].key != null)
-                        insert(oldRecords[index].key, oldRecords[index].value, oldRecords[index].hash, false);
+                    {
+                        if (newLength == MaxAsListSize << 1)
+                            insert(oldRecords[index].key, oldRecords[index].value, computeHash(oldRecords[index].key), false, false);
+                        else
+                            insert(oldRecords[index].key, oldRecords[index].value, oldRecords[index].hash, false, false);
+                    }
                 }
             }
+
             _previousIndex = -1;
             return _records.Length;
         }
 
         public void Add(string key, TValue value)
         {
-            insert(key, value, computeHash(key), true);
+            lock (_records)
+            {
+                insert(key, value, computeHash(key), true, true);
+            }
         }
 
         public bool ContainsKey(string key)
@@ -351,7 +493,10 @@ namespace WordStatCore
             }
             set
             {
-                insert(key, value, computeHash(key), false);
+                lock (_records)
+                {
+                    insert(key, value, computeHash(key), false, true);
+                }
             }
         }
 
@@ -380,7 +525,16 @@ namespace WordStatCore
         public void CopyTo(KeyValuePair<string, TValue>[] array, int arrayIndex)
         {
             foreach (var item in this)
-                array[arrayIndex++] = item;
+            {
+                if (arrayIndex < array.Length)
+                {
+                    array[arrayIndex++] = item;
+                }
+                else
+                {
+                    break;
+                }
+            }
         }
 
         public int Count
@@ -403,82 +557,39 @@ namespace WordStatCore
             if (_emptyKeyValueExists)
                 yield return new KeyValuePair<string, TValue>("", _emptyKeyValue);
 
-            if (_numberKeysIndexes == null)
-                buildNumberKeysList();
-
-            if (_numberKeysIndexes != null)
+            for (int index = 0; index < _records.Length; index++)
             {
-                for (var node = _numberKeysIndexes.First; node != null; node = node.Next)
-                {
-                    if (_records[_existsedIndexes[node.Value.Value]].key != null)
-                    {
-                        yield return new KeyValuePair<string, TValue>(
-                            _records[_existsedIndexes[node.Value.Value]].key,
-                            _records[_existsedIndexes[node.Value.Value]].value);
-                    }
-                }
-            }
-
-            uint fake;
-
-            for (int i = 0; i < _eicount; i++)
-            {
-                if (_records[_existsedIndexes[i]].key != null && (_numberKeysIndexes == null || !uint.TryParse(_records[_existsedIndexes[i]].key, out fake)))
+                if (_records[index].key != null)
                 {
                     yield return new KeyValuePair<string, TValue>(
-                        _records[_existsedIndexes[i]].key,
-                        _records[_existsedIndexes[i]].value);
+                        _records[index].key,
+                        _records[index].value);
                 }
             }
-        }
-
-        private void buildNumberKeysList()
-        {
-            for (var i = 0; i < _eicount; i++)
-            {
-                tryAddNumberKeyItem(i);
-            }
-        }
-
-        private void tryAddNumberKeyItem(int existsedIndex)
-        {
-            uint key;
-            var skey = _records[_existsedIndexes[existsedIndex]].key;
-            if (skey != null && char.IsDigit(skey[0]) && uint.TryParse(skey, out key))
-            {
-                if (_numberKeysIndexes == null)
-                    _numberKeysIndexes = new LinkedList<KeyValuePair<uint, int>>();
-
-                var node = findNumberListNode_LessOrEqual(key);
-
-                if (node == null)
-                    _numberKeysIndexes.AddFirst(new KeyValuePair<uint, int>(key, existsedIndex));
-                else
-                    _numberKeysIndexes.AddAfter(node, new KeyValuePair<uint, int>(key, existsedIndex));
-            }
-        }
-
-        private LinkedListNode<KeyValuePair<uint, int>> findNumberListNode_LessOrEqual(uint key)
-        {
-            var node = _numberKeysIndexes.First;
-
-            if (node == null || node.Value.Key > key)
-                return null;
-
-            while (node != null)
-            {
-                if (node.Next != null && node.Next.Value.Key <= key)
-                    node = node.Next;
-                else
-                    break;
-            }
-
-            return node;
         }
 
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
         {
             return GetEnumerator();
+        }
+
+        private List<Record> getNumbersItems()
+        {
+            var result = new List<KeyValuePair<long, Record>>();
+            for (int i = 0; i < _records.Length; i++)
+            {
+                uint number;
+                if (_records[i].key != null
+                        && _records[i].hash < 0
+                        && uint.TryParse(_records[i].key, NumberStyles.Integer, CultureInfo.InvariantCulture, out number))
+                {
+                    result.Add(new KeyValuePair<long, Record>(number, _records[i]));
+                }
+            }
+
+            result.Sort((x, y) => (int)(x.Key - y.Key));
+
+            return result.Select(x => x.Value).ToList();
         }
     }
 }

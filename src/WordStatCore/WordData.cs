@@ -57,7 +57,11 @@ namespace WordStatCore
         {
             get
             {
-                return data[index];// ?? (data[index] = new CollocationInfo());
+                int value = 0;
+                if (data.TryGetValue(index, out value))
+                    return value;// ?? (data[index] = new CollocationInfo());
+                else
+                    return 0;
             }
             set
             {
@@ -88,15 +92,11 @@ namespace WordStatCore
                 }
                 else
                 {
-                    var index = data.NearestIndexNotLess(1);
-
-                    while (index != 0)
+                    foreach (var item in data.DirectOrder)
                     {
-                        var t = this[index];
+                        var t = item.Value;
                         t *= t;
                         result += t;
-
-                        index = data.NearestIndexNotLess(index + 1);
                     }
                 }
 
@@ -163,7 +163,8 @@ namespace WordStatCore
             Engine = engine;
 
             _length = double.NaN;
-            data[0] = 0;// new CollocationInfo();
+            data = new SparseArray<int>(ArrayMode.Sparse);
+            data[0] = 0;
         }
 
         private void buildSkipList()
@@ -172,10 +173,15 @@ namespace WordStatCore
             {
                 var list = new List<KeyValuePair<WordData, int>>();
 
-                for (var i = 0; i != 0 || list.Count == 0; i = data.NearestIndexNotLess(i + 1))
+                foreach (var item in data.DirectOrder)
                 {
-                    list.Add(new KeyValuePair<WordData, int>(Engine.GetWordVector(i), data[i]));
+                    list.Add(new KeyValuePair<WordData, int>(Engine.GetWordVector(item.Key), item.Value));
                 }
+
+                //for (var i = 0; i != 0 || list.Count == 0; i = data.NearestIndexNotLess(i + 1))
+                //{
+                //    list.Add(new KeyValuePair<WordData, int>(Engine.GetWordVector(i), data[i]));
+                //}
 
                 skipList = list;
             }
@@ -187,62 +193,34 @@ namespace WordStatCore
                 throw new InvalidOperationException();
 
             var result = new WordData(left.Engine, null, -1);
-            result.data[0] = left.data[0] * (int)right.Length - right.data[0] * (int)left.Length;
-            /*
-            result.data[0] = new CollocationInfo
-            {
-                left = left.data[0].left * (int)right.LeftLength - right.data[0].left * (int)left.LeftLength,
-                right = left.data[0].right * (int)right.RightLength - right.data[0].right * (int)left.RightLength
-            };
-            */
 
-            var leftIndex = (int)left.data.NearestIndexNotLess(1);
-            var rightIndex = (int)right.data.NearestIndexNotLess(1);
+            var leftEnum = left.data.DirectOrder.GetEnumerator();
+            var rightEnum = right.data.DirectOrder.GetEnumerator();
 
-            while (leftIndex != 0 || rightIndex != 0)
+            while (leftEnum.MoveNext() || rightEnum.MoveNext())
             {
-                if (rightIndex == 0 || (leftIndex < rightIndex && leftIndex != 0))
+                while (leftEnum.Current.Key < rightEnum.Current.Key)
                 {
-                    /*
-                    result[leftIndex] = new CollocationInfo
-                    {
-                        left = left[leftIndex].left * (int)right.LeftLength,
-                        right = left[leftIndex].right * (int)right.RightLength
-                    };
-                    */
-
-                    result[leftIndex] = left[leftIndex] * (int)right.Length;
-
-                    leftIndex = (int)left.data.NearestIndexNotLess(leftIndex + 1);
+                    result[leftEnum.Current.Key] = leftEnum.Current.Value;
+                    if (!leftEnum.MoveNext())
+                        break;
                 }
-                else if (leftIndex == 0 || (leftIndex > rightIndex && rightIndex != 0))
+
+                while (rightEnum.Current.Key < leftEnum.Current.Key)
                 {
-                    /*
-                    result[rightIndex] = new CollocationInfo
-                    {
-                        left = -right[leftIndex].left * (int)left.LeftLength,
-                        right = -right[leftIndex].right * (int)left.RightLength
-                    };
-                    */
+                    result[rightEnum.Current.Key] = -rightEnum.Current.Value;
+                    if (!rightEnum.MoveNext())
+                        break;
+                }
 
-                    result[leftIndex] = -right[rightIndex] * (int)left.Length;
-
-                    rightIndex = (int)right.data.NearestIndexNotLess(rightIndex + 1);
+                if (leftEnum.Current.Key == rightEnum.Current.Key)
+                {
+                    result[leftEnum.Current.Key] = leftEnum.Current.Value - rightEnum.Current.Value;
                 }
                 else
                 {
-                    /*
-                    result.data[leftIndex] = new CollocationInfo
-                    {
-                        left = left.data[leftIndex].left * (int)right.LeftLength - right.data[rightIndex].left * (int)left.LeftLength,
-                        right = left.data[leftIndex].right * (int)right.RightLength - right.data[rightIndex].right * (int)left.RightLength
-                    };
-                    */
-
-                    result.data[leftIndex] = left.data[leftIndex] * (int)right.Length - right.data[rightIndex] * (int)left.Length;
-
-                    leftIndex = (int)left.data.NearestIndexNotLess(leftIndex + 1);
-                    rightIndex = (int)right.data.NearestIndexNotLess(rightIndex + 1);
+                    result[leftEnum.Current.Key] = leftEnum.Current.Value - rightEnum.Current.Value;
+                    result[rightEnum.Current.Key] = -rightEnum.Current.Value;
                 }
             }
 
@@ -255,36 +233,34 @@ namespace WordStatCore
                 throw new InvalidOperationException();
 
             var result = new WordData(left.Engine, null, -1);
-            var leftIndex = 0;
-            var rightIndex = 0;
 
-            while (leftIndex != 0 || rightIndex != 0)
+            var leftEnum = left.data.DirectOrder.GetEnumerator();
+            var rightEnum = right.data.DirectOrder.GetEnumerator();
+
+            while (leftEnum.MoveNext() || rightEnum.MoveNext())
             {
-                if (rightIndex == right.skipList.Count
-                    || (leftIndex != left.skipList.Count
-                        && left.skipList[leftIndex].Key.Id < right.skipList[rightIndex].Key.Id))
+                while (leftEnum.Current.Key < rightEnum.Current.Key)
                 {
-                    result[leftIndex] = left[leftIndex] * (int)right.Length;
-
-                    leftIndex = (int)left.data.NearestIndexNotLess(leftIndex + 1);
+                    result[leftEnum.Current.Key] = leftEnum.Current.Value;
+                    if (!leftEnum.MoveNext())
+                        break;
                 }
-                else if (leftIndex == left.skipList.Count
-                    || (rightIndex != right.skipList.Count
-                        && left.skipList[leftIndex].Key.Id > right.skipList[rightIndex].Key.Id))
-                {
-                    result[leftIndex] = right[rightIndex] * (int)left.Length;
 
-                    rightIndex = (int)right.data.NearestIndexNotLess(rightIndex + 1);
+                while (rightEnum.Current.Key < leftEnum.Current.Key)
+                {
+                    result[rightEnum.Current.Key] = rightEnum.Current.Value;
+                    if (!rightEnum.MoveNext())
+                        break;
+                }
+
+                if (leftEnum.Current.Key == rightEnum.Current.Key)
+                {
+                    result[leftEnum.Current.Key] = leftEnum.Current.Value + rightEnum.Current.Value;
                 }
                 else
                 {
-                    result.data[leftIndex] =
-                        left.skipList[leftIndex].Value * (int)right.Length
-                        +
-                        right.skipList[rightIndex].Value * (int)left.Length;
-
-                    leftIndex = (int)left.data.NearestIndexNotLess(leftIndex + 1);
-                    rightIndex = (int)right.data.NearestIndexNotLess(rightIndex + 1);
+                    result[leftEnum.Current.Key] = leftEnum.Current.Value + rightEnum.Current.Value;
+                    result[rightEnum.Current.Key] = rightEnum.Current.Value;
                 }
             }
 

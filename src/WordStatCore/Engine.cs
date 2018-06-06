@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace WordStatCore
@@ -60,48 +61,62 @@ namespace WordStatCore
         {
             var bagOfWord = text.Split(splitChars);
 
+            lock (words)
+            {
+                foreach (var word in bagOfWord)
+                    GetWordVector(word, true);
+            }
+
             int windowIndex = WindowSize - 1;
             WordData[] prevWords = new WordData[WindowSize];
             for (var i = 0; i < WindowSize - 1; i++)
             {
-                prevWords[i] = GetWordVector(bagOfWord[i], true);
+                prevWords[i] = GetWordVector(bagOfWord[i], false);
+
+                if (bagOfWord[i] == "")
+                    continue;
 
                 for (var j = i - 1; j >= 0; j--)
                 {
-                    /*
-                    prevWords[j][prevWords[i].Id].right += j + 1;
-                    prevWords[i][prevWords[j].Id].left += j + 1;
-                    */
-                    prevWords[j][prevWords[i].Id] += j + 1;
-                    prevWords[i][prevWords[j].Id] += j + 1;
+                    if (prevWords[i].Word != prevWords[j].Word)
+                    {
+                        lock (prevWords[i])
+                        {
+                            prevWords[i][prevWords[j].Id] += j + 1;
+                        }
+                        lock (prevWords[j])
+                        {
+                            prevWords[j][prevWords[i].Id] += j + 1;
+                        }
+                    }
                 }
             }
 
             for (var i = WindowSize - 1; i < bagOfWord.Length; i++)
             {
-                var currentVec = GetWordVector(bagOfWord[i], true);
-
+                var currentVec = GetWordVector(bagOfWord[i], false);
+                currentVec[0] = 0;
                 prevWords[windowIndex] = currentVec;
 
-                for (var j = windowIndex + WindowSize - 1; j > windowIndex; j--)
+                if (bagOfWord[i] != "")
                 {
-                    /*
-                    if (j % WindowSize > windowIndex)
+                    for (var j = windowIndex + WindowSize - 1; j > windowIndex; j--)
                     {
-                        prevWords[j % WindowSize][prevWords[windowIndex].Id].left += (j - windowIndex);
-                        prevWords[windowIndex][prevWords[j % WindowSize].Id].right += (j - windowIndex);
+                        var nearWord = prevWords[j % WindowSize];
+                        if (!string.IsNullOrEmpty(nearWord.Word) && nearWord.Word != currentVec.Word)
+                        {
+                            lock (currentVec)
+                            {
+                                currentVec[nearWord.Id] += (j - windowIndex);
+                            }
+                            lock (nearWord)
+                            {
+                                currentVec[nearWord.Id] += (j - windowIndex);
+                            }
+                        }
                     }
-                    else
-                    {
-                        prevWords[j % WindowSize][prevWords[windowIndex].Id].right += (j - windowIndex);
-                        prevWords[windowIndex][prevWords[j % WindowSize].Id].left += (j - windowIndex);
-                    }
-                    */
-                    prevWords[j % WindowSize][prevWords[windowIndex].Id] += (j - windowIndex);
-                    prevWords[windowIndex][prevWords[j % WindowSize].Id] += (j - windowIndex);
                 }
 
-                prevWords[windowIndex][0] = 0; // new CollocationInfo();
                 windowIndex++;
                 windowIndex %= WindowSize;
             }

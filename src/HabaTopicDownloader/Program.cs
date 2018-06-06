@@ -4,6 +4,7 @@ using System.Net;
 using System.IO;
 using System.Threading;
 using System.Xml;
+using System.Xml.XPath;
 
 namespace HabraTopicDownloader
 {
@@ -62,7 +63,8 @@ namespace HabraTopicDownloader
                             Interlocked.Increment(ref downloaded);
                         }
                         catch (WebException)
-                        { }
+                        {
+                        }
                         catch (IOException)
                         {
                             repeat = true;
@@ -92,7 +94,7 @@ namespace HabraTopicDownloader
 
         private static void downloadPost(int postId, string expectedFileName)
         {
-            var requestTask = WebRequest.Create(_postPagePath + postId).GetResponseAsync();
+            var requestTask = WebRequest.Create(_postPagePath + postId + '/').GetResponseAsync();
 
             try
             {
@@ -108,17 +110,15 @@ namespace HabraTopicDownloader
                 var doc = HtmlReader.Create(postPage).Document;
 
                 foreach (XmlElement br in doc.SelectNodes("//br"))
-                {
                     br.AppendChild(doc.CreateTextNode(Environment.NewLine));
-                }
 
-                var content = doc.SelectNodes("/html/body//div[@class=\"content html_format\"]");
+                var content = doc.SelectNodes("/html/body//div[contains(@class, \"post__text\")]");
 
                 if (content.Count > 0)
                 {
                     Directory.CreateDirectory("habrahabr");
 
-                    var title = WebUtility.HtmlDecode(doc.SelectNodes("/html/body//h1[@class=\"post__title\"]")[0].InnerText).Trim();
+                    var title = WebUtility.HtmlDecode(doc.SelectNodes("/html/body//h1[contains(@class,\"post__title\")]")[0].InnerText).Trim();
                     var text = WebUtility.HtmlDecode(content[0].InnerText).Trim();
                     var comments = doc.SelectNodes("/html/body//div[contains(@class, \"message\")]")
                         .Cast<XmlElement>()

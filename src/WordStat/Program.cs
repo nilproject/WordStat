@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using WordStatCore;
 
 namespace WordStat
@@ -40,9 +41,32 @@ namespace WordStat
             });
 
             var sw = Stopwatch.StartNew();
-            foreach (var fileName in Directory.EnumerateFiles(".", "*.txt", SearchOption.AllDirectories))
+            var files = Directory.EnumerateFiles(".", "*.txt", SearchOption.AllDirectories).ToArray();
+            var prevUpdate = Environment.TickCount;
+            var tasks = new List<Task>();
+            var sync = false;
+            for (var i = 0; i < files.Length; i++)
             {
-                learnOn(engine, fileName);
+                var file = files[i];
+                if (sync)
+                {
+                    learnOn(engine, file);
+                }
+                else
+                {
+                    tasks.Add(Task.Run(() => learnOn(engine, file)));
+                    if (tasks.Count >= 200)
+                    {
+                        Task.WaitAll(tasks.ToArray());
+                        tasks.Clear();
+                    }
+                }
+
+                if (Environment.TickCount - prevUpdate >= 500)
+                {
+                    prevUpdate = Environment.TickCount;
+                    Console.Title = i + "/" + files.Length;
+                }
             }
             sw.Stop();
             Console.Title = sw.Elapsed.ToString();
