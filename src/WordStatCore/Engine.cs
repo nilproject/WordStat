@@ -111,7 +111,7 @@ namespace WordStatCore
                             }
                             lock (nearWord)
                             {
-                                currentVec[nearWord.Id] += (j - windowIndex);
+                                nearWord[currentVec.Id] += (j - windowIndex);
                             }
                         }
                     }

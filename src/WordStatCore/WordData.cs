@@ -172,9 +172,10 @@ namespace WordStatCore
             if (skipList == null)
             {
                 var list = new List<KeyValuePair<WordData, int>>();
-
+                var keys = new List<int>();
                 foreach (var item in data.DirectOrder)
                 {
+                    keys.Add(item.Key);
                     list.Add(new KeyValuePair<WordData, int>(Engine.GetWordVector(item.Key), item.Value));
                 }
 
@@ -277,9 +278,9 @@ namespace WordStatCore
             this.buildSkipList();
             wordData.buildSkipList();
 
-            var filter = 7 * (this.Engine.WindowSize - 1);
-            if (this.Length < filter || wordData.Length < filter)
-                return 0;
+            //var filter = 7 * (this.Engine.WindowSize - 1);
+            //if (this.Length < filter || wordData.Length < filter)
+            //    return 0;
 
             var thisIndex = 0;
             var rightIndex = 0;

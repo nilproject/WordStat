@@ -119,6 +119,9 @@ namespace WordStatCore
             }
             set
             {
+                //if (index == 200034)
+                //    System.Diagnostics.Debugger.Break();
+
                 bool @default = value == null; // структуры мы будем записывать, иначе пришлось бы вызывать тяжелые операции сравнения.
                 //if (navyData.Length <= allocatedCount)
                 //    ensureCapacity(navyData.Length * 2);
@@ -493,20 +496,20 @@ namespace WordStatCore
                                 }
 
                                 i = pm;
-                                for (; ; )
-                                {
-                                    if (_navyData[i].zeroContinue != 0)
-                                    {
-                                        i = _navyData[i].zeroContinue;
-                                        continue;
-                                    }
-                                    if (_navyData[i].oneContinue != 0)
-                                    {
-                                        i = _navyData[i].oneContinue;
-                                        continue;
-                                    }
-                                    break;
-                                }
+                                //for (; ; )
+                                //{
+                                //    if (_navyData[i].zeroContinue != 0)
+                                //    {
+                                //        i = _navyData[i].zeroContinue;
+                                //        continue;
+                                //    }
+                                //    if (_navyData[i].oneContinue != 0)
+                                //    {
+                                //        i = _navyData[i].oneContinue;
+                                //        continue;
+                                //    }
+                                //    break;
+                                //}
                             }
 
                             if (_navyData[i].index >= index)

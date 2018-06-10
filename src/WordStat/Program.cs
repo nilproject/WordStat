@@ -20,25 +20,25 @@ namespace WordStat
             var engine = new Engine(2);
 
             engine.AddSynonims(new[] { new[] { "идти", "итти" } });
-            engine.AddNoiseWords(new[]
-            {
-                "с",
-                "на",
-                "в",
-                "из",
-                "под",
-                "вне",
-                "без",
-                "ещё",
-                "как",
-                "почти",
-                "бы",
-                "не",
-                "ну",
-                "и",
-                "или",
-                "а"
-            });
+            //engine.AddNoiseWords(new[]
+            //{
+            //    "с",
+            //    "на",
+            //    "в",
+            //    "из",
+            //    "под",
+            //    "вне",
+            //    "без",
+            //    "ещё",
+            //    "как",
+            //    "почти",
+            //    "бы",
+            //    "не",
+            //    "ну",
+            //    "и",
+            //    "или",
+            //    "а"
+            //});
 
             var sw = Stopwatch.StartNew();
             var files = Directory.EnumerateFiles(".", "*.txt", SearchOption.AllDirectories).ToArray();
@@ -55,7 +55,7 @@ namespace WordStat
                 else
                 {
                     tasks.Add(Task.Run(() => learnOn(engine, file)));
-                    if (tasks.Count >= 200)
+                    if (tasks.Count >= 50)
                     {
                         Task.WaitAll(tasks.ToArray());
                         tasks.Clear();
@@ -146,7 +146,6 @@ namespace WordStat
             using (var input = new StreamReader(fileStream, true))
             {
                 var filtered = Engine.PreprocessData(input.ReadToEnd());
-
                 engine.LearnOn(filtered);
             }
         }

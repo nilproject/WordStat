@@ -5,6 +5,7 @@ using System.IO;
 using System.Threading;
 using System.Xml;
 using System.Xml.XPath;
+using NiL.HttpUtils;
 
 namespace HabraTopicDownloader
 {
@@ -25,10 +26,12 @@ namespace HabraTopicDownloader
             var postId = 0;
             var threadLimit = 10;
             var downloaded = 0;
-            postId = await GetLastPostId();
-
             var startTime = Environment.TickCount;
             var runnedThreads = 0;
+            
+            postId = await GetLastPostId();
+
+            Directory.CreateDirectory("habrahabr");
 
             for (var processed = 0; processed < count; processed++, postId--)
             {
@@ -116,8 +119,6 @@ namespace HabraTopicDownloader
 
                 if (content.Count > 0)
                 {
-                    Directory.CreateDirectory("habrahabr");
-
                     var title = WebUtility.HtmlDecode(doc.SelectNodes("/html/body//h1[contains(@class,\"post__title\")]")[0].InnerText).Trim();
                     var text = WebUtility.HtmlDecode(content[0].InnerText).Trim();
                     var comments = doc.SelectNodes("/html/body//div[contains(@class, \"message\")]")

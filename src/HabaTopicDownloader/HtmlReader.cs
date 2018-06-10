@@ -7,9 +7,9 @@ using System.Reflection;
 using System.Xml;
 using System.Xml.Linq;
 
-namespace HabraTopicDownloader
+namespace NiL.HttpUtils
 {
-    class HtmlReader : XmlReader
+    public class HtmlReader : XmlReader
     {
         private static readonly HashSet<string> _ForceCloseTags = new HashSet<string>
         {
@@ -109,7 +109,7 @@ namespace HabraTopicDownloader
             do
             {
                 node = parseNode(source, ref index, doc, 0, ref depth, openedTags);
-                if (node != null)
+                if (node != null && node.NodeType != XmlNodeType.Text)
                     doc.AppendChild(node);
             }
             while (node != null);
@@ -122,7 +122,7 @@ namespace HabraTopicDownloader
             if (maxDepth < depth)
                 maxDepth = depth;
 
-            skipSpaces(source, ref index);
+            // skipSpaces(source, ref index);
 
             if (index >= source.Length)
                 return null;
@@ -238,14 +238,21 @@ namespace HabraTopicDownloader
                         result.InnerText = Environment.NewLine;
                     }
 
+                    if (string.CompareOrdinal(name, "td") == 0)
+                    {
+                        //result.AppendChild(doc.CreateTextNode(" "));
+                    }
+
                     while (source[index] != '>')
                         index++;
+
                     if (source[index - 1] == '/')
                     {
                         index++;
                         openedTags.RemoveAt(openedTags.Count - 1);
                         return result;
                     }
+
                     index++;
 
                     if (_ForceCloseTags.Contains(name))
@@ -302,7 +309,6 @@ namespace HabraTopicDownloader
                                     start = index;
                                     validateName(source, ref index);
                                     var closeTagName = source.Substring(start, index - start);
-
                                     if (openedTags.LastIndexOf(closeTagName) == -1)
                                     {
                                         while (source[index] != '>')
@@ -320,7 +326,6 @@ namespace HabraTopicDownloader
                                 {
                                     index += "</".Length + name.Length;
                                     skipSpaces(source, ref index);
-
                                     if (source[index] == '>')
                                         index++;
                                     else
@@ -331,9 +336,16 @@ namespace HabraTopicDownloader
                     }
 
                     if ((name.Length == 2 && name[0] == 'h' && char.IsDigit(name[1]))
-                        || string.CompareOrdinal(name, "li") == 0)
+                        || string.CompareOrdinal(name, "li") == 0
+                        || string.CompareOrdinal(name, "tr") == 0
+                        || string.CompareOrdinal(name, "th") == 0
+                        || string.CompareOrdinal(name, "p") == 0)
                     {
                         result.AppendChild(doc.CreateTextNode(Environment.NewLine));
+                    }
+                    else if (string.CompareOrdinal(name, "td") == 0)
+                    {
+                        result.AppendChild(doc.CreateTextNode(" "));
                     }
 
                     if (openedTags[openedTags.Count - 1] == name)
@@ -346,11 +358,15 @@ namespace HabraTopicDownloader
             {
                 var start = index;
 
-                while (source[index] != '<'
-                    || (source[index + 1] != '!'
-                        && source[index + 1] != '/'
-                        && !char.IsLetter(source[index + 1])))
+                while (source[index] != '<' || (source[index + 1] != '!'
+                                                && source[index + 1] != '/'
+                                                && !char.IsLetter(source[index + 1])))
+                {
                     index++;
+
+                    if (index >= source.Length)
+                        break;
+                }
 
                 return doc.CreateTextNode(source.Substring(start, index - start));
             }
@@ -401,7 +417,7 @@ namespace HabraTopicDownloader
             index = j;
             return true;
         }
-        
+
         private static bool validateString(string code, ref int index)
         {
             int j = index;

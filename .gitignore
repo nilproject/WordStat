@@ -244,3 +244,4 @@ ModelManifest.xml
 # User
 src/WordStat/habrahabr/*
 /src/HabaTopicDownloader/habrahabr
+/src/WikipediaTopicDownloader/wikipedia
