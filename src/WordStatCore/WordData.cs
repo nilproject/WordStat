@@ -47,17 +47,17 @@ namespace WordStatCore
 
     public sealed class WordData
     {
-        private SparseArray<int> data = new SparseArray<int>();
-        private List<KeyValuePair<WordData, int>> skipList;
+        private SparseArray<double> data = new SparseArray<double>();
+        private List<KeyValuePair<WordData, double>> skipList;
         private double _length = double.NaN;
         //private double _leftLength = double.NaN;
         //private double _rightLength = double.NaN;
 
-        public int this[int index]
+        public double this[int index]
         {
             get
             {
-                int value = 0;
+                double value = 0;
                 if (data.TryGetValue(index, out value))
                     return value;// ?? (data[index] = new CollocationInfo());
                 else
@@ -80,24 +80,9 @@ namespace WordStatCore
                     return _length;
 
                 double result = 0;
-
-                if (skipList != null)
+                foreach (var value in data.Values)
                 {
-                    for (var i = 0; i < skipList.Count; i++)
-                    {
-                        var t = skipList[i].Value;
-                        t *= t;
-                        result += t;
-                    }
-                }
-                else
-                {
-                    foreach (var item in data.DirectOrder)
-                    {
-                        var t = item.Value;
-                        t *= t;
-                        result += t;
-                    }
+                    result += value * value;
                 }
 
                 return _length = Math.Sqrt(result);
@@ -163,7 +148,7 @@ namespace WordStatCore
             Engine = engine;
 
             _length = double.NaN;
-            data = new SparseArray<int>(ArrayMode.Sparse);
+            data = new SparseArray<double>(ArrayMode.Sparse);
             data[0] = 0;
         }
 
@@ -171,18 +156,21 @@ namespace WordStatCore
         {
             if (skipList == null)
             {
-                var list = new List<KeyValuePair<WordData, int>>();
-                var keys = new List<int>();
+                var list = new List<KeyValuePair<WordData, double>>();
                 foreach (var item in data.DirectOrder)
                 {
-                    keys.Add(item.Key);
-                    list.Add(new KeyValuePair<WordData, int>(Engine.GetWordVector(item.Key), item.Value));
+                    list.Add(new KeyValuePair<WordData, double>(Engine.GetWordVector(item.Key), item.Value));
                 }
 
-                //for (var i = 0; i != 0 || list.Count == 0; i = data.NearestIndexNotLess(i + 1))
-                //{
-                //    list.Add(new KeyValuePair<WordData, int>(Engine.GetWordVector(i), data[i]));
-                //}
+                if (list.Count < data.Keys.Count)
+                {
+                    var keysSet = new HashSet<int>(data.Keys);
+                    foreach(var item in list)
+                    {
+                        keysSet.Remove(item.Key.Id);
+                    }
+                    System.Diagnostics.Debugger.Break();
+                }
 
                 skipList = list;
             }
@@ -197,6 +185,9 @@ namespace WordStatCore
 
             var leftEnum = left.data.DirectOrder.GetEnumerator();
             var rightEnum = right.data.DirectOrder.GetEnumerator();
+
+            var leftLen = left.Length;
+            var rightLen = right.Length;
 
             while (leftEnum.MoveNext() || rightEnum.MoveNext())
             {
@@ -216,12 +207,12 @@ namespace WordStatCore
 
                 if (leftEnum.Current.Key == rightEnum.Current.Key)
                 {
-                    result[leftEnum.Current.Key] = leftEnum.Current.Value - rightEnum.Current.Value;
+                    result[leftEnum.Current.Key] = leftEnum.Current.Value / leftLen - rightEnum.Current.Value / rightLen;
                 }
                 else
                 {
-                    result[leftEnum.Current.Key] = leftEnum.Current.Value - rightEnum.Current.Value;
-                    result[rightEnum.Current.Key] = -rightEnum.Current.Value;
+                    result[leftEnum.Current.Key] = leftEnum.Current.Value / leftLen;
+                    result[rightEnum.Current.Key] = -rightEnum.Current.Value / rightLen;
                 }
             }
 
@@ -238,6 +229,9 @@ namespace WordStatCore
             var leftEnum = left.data.DirectOrder.GetEnumerator();
             var rightEnum = right.data.DirectOrder.GetEnumerator();
 
+            var leftLen = left.Length;
+            var rightLen = right.Length;
+
             while (leftEnum.MoveNext() || rightEnum.MoveNext())
             {
                 while (leftEnum.Current.Key < rightEnum.Current.Key)
@@ -256,56 +250,56 @@ namespace WordStatCore
 
                 if (leftEnum.Current.Key == rightEnum.Current.Key)
                 {
-                    result[leftEnum.Current.Key] = leftEnum.Current.Value + rightEnum.Current.Value;
+                    result[leftEnum.Current.Key] = leftEnum.Current.Value / leftLen + rightEnum.Current.Value / rightLen;
                 }
                 else
                 {
-                    result[leftEnum.Current.Key] = leftEnum.Current.Value + rightEnum.Current.Value;
-                    result[rightEnum.Current.Key] = rightEnum.Current.Value;
+                    result[leftEnum.Current.Key] = leftEnum.Current.Value / leftLen;
+                    result[rightEnum.Current.Key] = rightEnum.Current.Value / rightLen;
                 }
             }
 
             return result;
         }
 
-        public double SemanticProximity(WordData wordData)
+        public double SemanticProximity(WordData anotherWord)
         {
-            if (Engine != wordData.Engine)
+            if (Engine != anotherWord.Engine)
                 throw new InvalidOperationException();
 
             double result = 0;
 
             this.buildSkipList();
-            wordData.buildSkipList();
+            anotherWord.buildSkipList();
 
-            //var filter = 7 * (this.Engine.WindowSize - 1);
-            //if (this.Length < filter || wordData.Length < filter)
-            //    return 0;
+            var filter = 7 * (this.Engine.WindowSize - 1);
+            if (this.Length < filter || anotherWord.Length < filter)
+                return 0;
 
             var thisIndex = 0;
             var rightIndex = 0;
 
             while (thisIndex < this.skipList.Count
-                || rightIndex < wordData.skipList.Count)
+                || rightIndex < anotherWord.skipList.Count)
             {
-                if (thisIndex == this.skipList.Count || rightIndex == wordData.skipList.Count)
+                if (thisIndex == this.skipList.Count || rightIndex == anotherWord.skipList.Count)
                 {
                     break;
                 }
 
                 if ((thisIndex != this.skipList.Count
-                        && this.skipList[thisIndex].Key.Id < wordData.skipList[rightIndex].Key.Id))
+                        && this.skipList[thisIndex].Key.Id < anotherWord.skipList[rightIndex].Key.Id))
                 {
                     thisIndex++;
                 }
-                else if ((rightIndex != wordData.skipList.Count
-                        && this.skipList[thisIndex].Key.Id > wordData.skipList[rightIndex].Key.Id))
+                else if ((rightIndex != anotherWord.skipList.Count
+                        && this.skipList[thisIndex].Key.Id > anotherWord.skipList[rightIndex].Key.Id))
                 {
                     rightIndex++;
                 }
                 else
                 {
-                    int t;
+                    double t;
                     /*
                     switch (direction)
                     {
@@ -333,7 +327,7 @@ namespace WordStatCore
                    }
                    */
 
-                    t = skipList[thisIndex].Value * wordData.skipList[rightIndex].Value;
+                    t = skipList[thisIndex].Value * anotherWord.skipList[rightIndex].Value;
 
                     result += t;
 
@@ -356,7 +350,7 @@ namespace WordStatCore
             }
             */
 
-            return result / (this.Length * wordData.Length);
+            return result / this.Length / anotherWord.Length;
         }
 
         public KeyValuePair<string, double>[] FrequencyEnvironment()

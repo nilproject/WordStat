@@ -20,25 +20,25 @@ namespace WordStat
             var engine = new Engine(2);
 
             engine.AddSynonims(new[] { new[] { "идти", "итти" } });
-            //engine.AddNoiseWords(new[]
-            //{
-            //    "с",
-            //    "на",
-            //    "в",
-            //    "из",
-            //    "под",
-            //    "вне",
-            //    "без",
-            //    "ещё",
-            //    "как",
-            //    "почти",
-            //    "бы",
-            //    "не",
-            //    "ну",
-            //    "и",
-            //    "или",
-            //    "а"
-            //});
+            engine.AddNoiseWords(new[]
+            {
+                "с",
+                "на",
+                "в",
+                "из",
+                "под",
+                "вне",
+                "без",
+                "ещё",
+                "как",
+                "почти",
+                "бы",
+                "не",
+                "ну",
+                "и",
+                "или",
+                "а"
+            });
 
             var sw = Stopwatch.StartNew();
             var files = Directory.EnumerateFiles(".", "*.txt", SearchOption.AllDirectories).ToArray();
@@ -55,7 +55,7 @@ namespace WordStat
                 else
                 {
                     tasks.Add(Task.Run(() => learnOn(engine, file)));
-                    if (tasks.Count >= 50)
+                    if (tasks.Count >= 200)
                     {
                         Task.WaitAll(tasks.ToArray());
                         tasks.Clear();
@@ -107,7 +107,10 @@ namespace WordStat
                     }
                     else if (words.Length == 3)
                     {
-                        result = engine.FindSynonyms(engine.GetWordVector(words[0], false) - engine.GetWordVector(words[1], false) + engine.GetWordVector(words[2], false), 10);
+                        var word0 = engine.GetWordVector(words[0], false);
+                        var word1 = engine.GetWordVector(words[1], false);
+                        var word2 = engine.GetWordVector(words[1], false);
+                        result = engine.FindSynonyms(word0 + word1 - word2, 10);
                     }
                     else
                     {

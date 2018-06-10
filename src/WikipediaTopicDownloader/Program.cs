@@ -114,6 +114,7 @@ namespace WikipediaTopicDownloader
                 if (content.Count > 0)
                 {
                     var fileName = _targetDirectory + "/" + Path.GetFileName(System.Net.WebUtility.UrlDecode(response.ResponseUri.AbsolutePath)) + ".txt";
+                    fileName = fileName.Replace('?', '_');
                     try
                     { 
                         var text = WebUtility.HtmlDecode(content[0].InnerText).Trim();

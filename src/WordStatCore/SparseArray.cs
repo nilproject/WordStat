@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace WordStatCore
@@ -119,8 +121,8 @@ namespace WordStatCore
             }
             set
             {
-                //if (index == 200034)
-                //    System.Diagnostics.Debugger.Break();
+                if (index == -1)
+                    System.Diagnostics.Debugger.Break();
 
                 bool @default = value == null; // структуры мы будем записывать, иначе пришлось бы вызывать тяжелые операции сравнения.
                 //if (navyData.Length <= allocatedCount)
@@ -576,9 +578,9 @@ namespace WordStatCore
             }
         }
 
-        public ICollection<int> Keys => throw new NotImplementedException();
+        public ICollection<int> Keys => _navyData.Take((int)_allocatedCount).Select(x => (int)x.index).ToArray();
 
-        public ICollection<TValue> Values => throw new NotImplementedException();
+        public ICollection<TValue> Values => new ReadOnlyCollection<TValue>(_values);
 
         public int Count => throw new NotImplementedException();
 

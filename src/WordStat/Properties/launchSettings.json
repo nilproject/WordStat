@@ -1,7 +1,8 @@
 {
   "profiles": {
     "WordStat": {
-      "commandName": "Project"
+      "commandName": "Project",
+      "workingDirectory": "C:\\Users\\Дмитрий\\Documents\\Visual Studio 2017\\Projects\\WordStat\\src\\WikipediaTopicDownloader\\wikipedia"
     }
   }
 }

@@ -103,7 +103,7 @@ namespace WordStatCore
                     for (var j = windowIndex + WindowSize - 1; j > windowIndex; j--)
                     {
                         var nearWord = prevWords[j % WindowSize];
-                        if (!string.IsNullOrEmpty(nearWord.Word) && nearWord.Word != currentVec.Word)
+                        if (!string.IsNullOrEmpty(nearWord.Word) && !string.IsNullOrEmpty(currentVec.Word) && nearWord.Word != currentVec.Word)
                         {
                             lock (currentVec)
                             {
@@ -188,6 +188,9 @@ namespace WordStatCore
 
                 if (double.IsNaN(s))
                     continue;
+
+                if (s > 1)
+                    System.Diagnostics.Debugger.Break();
 
                 var i = 0;
                 for (; i < result.Count; i++)
