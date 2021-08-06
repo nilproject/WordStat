@@ -160,12 +160,12 @@ namespace WordStatCore
             return GetWordVector(leftWord, false) - GetWordVector(rigthWord, false);
         }
 
-        public KeyValuePair<string, double>[] FindSynonyms(string word, int count)
+        public IEnumerable<KeyValuePair<string, double>> FindSynonyms(string word, int count)
         {
             return FindSynonyms(GetWordVector(word, false), count);
         }
 
-        public KeyValuePair<string, double>[] FindSynonyms(WordData wordData, int count)
+        public IEnumerable<KeyValuePair<string, double>> FindSynonyms(WordData wordData, int count)
         {
             if (wordData == null)
                 return new KeyValuePair<string, double>[0];
@@ -208,7 +208,7 @@ namespace WordStatCore
                 }
             }
 
-            return result.ToArray();
+            return result;
         }
 
         private static List<string> _noiseWords = new List<string>();

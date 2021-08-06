@@ -166,7 +166,7 @@ namespace NiL.HttpUtils
                     }
                     else if (source[index] == '-' && source[index + 1] == '-')
                     {
-                        index += 2;
+                        index += 1;
                         start = index;
 
                         while (source[index + 1] != '-' || source[index + 2] != '-' || source[index + 3] != '>')

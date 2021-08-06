@@ -27,7 +27,7 @@ namespace WikipediaTopicDownloader
         {
             var count = 100000;
             var postId = 0;
-            var threadLimit = System.Diagnostics.Debugger.IsAttached ? 1 : 20;
+            var threadLimit = System.Diagnostics.Debugger.IsAttached ? 1 : 5;
             var downloaded = 0;
             var startTime = Environment.TickCount;
             var runnedThreads = 0;
@@ -89,7 +89,7 @@ namespace WikipediaTopicDownloader
 
         private static void downloadRandomArticle()
         {
-            var requestTask = WebRequest.Create(System.Diagnostics.Debugger.IsAttached ? _testPagePath : _randomPagePath).GetResponseAsync();
+            var requestTask = WebRequest.Create( _randomPagePath).GetResponseAsync();
 
             try
             {

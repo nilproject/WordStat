@@ -11,7 +11,7 @@ namespace HabraTopicDownloader
 {
     class Program
     {
-        private const string _habraUrl = "https://habrahabr.ru/";
+        private const string _habraUrl = "https://habr.com/";
         private const string _indexPagePath = _habraUrl + "all/";
         private const string _postPagePath = _habraUrl + "post/";
 
@@ -22,9 +22,9 @@ namespace HabraTopicDownloader
 
         private static async System.Threading.Tasks.Task downloadPosts()
         {
-            var count = 100000;
+            var count = 10000;
             var postId = 0;
-            var threadLimit = 10;
+            var threadLimit = 7;
             var downloaded = 0;
             var startTime = Environment.TickCount;
             var runnedThreads = 0;
@@ -54,6 +54,9 @@ namespace HabraTopicDownloader
 
                 var postId_ = postId;
                 Interlocked.Increment(ref runnedThreads);
+
+                Console.WriteLine($"active threads {runnedThreads}");
+
                 ThreadPool.QueueUserWorkItem((data) =>
                 {
                     var repeat = false;
@@ -78,6 +81,9 @@ namespace HabraTopicDownloader
                     Interlocked.Decrement(ref runnedThreads);
                 });
             }
+
+            while (runnedThreads > 0)
+                Thread.Sleep(1);
         }
 
         private static async System.Threading.Tasks.Task<int> GetLastPostId()
@@ -87,7 +93,7 @@ namespace HabraTopicDownloader
             {
                 var doc = HtmlReader.Create(indexPage);
 
-                var div = doc.Document.SelectNodes("/html/body//h2[@class=\"post__title\"]/a[@class=\"post__title_link\"]");
+                var div = doc.Document.SelectNodes("/html/body//a[@data-article-link]");
 
                 postId = int.Parse(div[0].Attributes["href"].Value.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries).Last());
             }
@@ -115,11 +121,11 @@ namespace HabraTopicDownloader
                 foreach (XmlElement br in doc.SelectNodes("//br"))
                     br.AppendChild(doc.CreateTextNode(Environment.NewLine));
 
-                var content = doc.SelectNodes("/html/body//div[contains(@class, \"post__text\")]");
+                var content = doc.SelectNodes("/html/body//div[contains(@id, \"post-content-body\")]");
 
                 if (content.Count > 0)
                 {
-                    var title = WebUtility.HtmlDecode(doc.SelectNodes("/html/body//h1[contains(@class,\"post__title\")]")[0].InnerText).Trim();
+                    var title = WebUtility.HtmlDecode(doc.SelectNodes("/html/body//h1[contains(@class,\"snippet__title\")]")[0].InnerText).Trim();
                     var text = WebUtility.HtmlDecode(content[0].InnerText).Trim();
                     var comments = doc.SelectNodes("/html/body//div[contains(@class, \"message\")]")
                         .Cast<XmlElement>()

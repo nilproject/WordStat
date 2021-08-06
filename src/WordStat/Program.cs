@@ -74,7 +74,7 @@ namespace WordStat
             for (;;)
             {
                 string request;
-                KeyValuePair<string, double>[] result = null;
+                IEnumerable<KeyValuePair<string, double>> result = null;
 
                 Console.Write("Enter word: ");
                 request = Console.ReadLine().Trim().ToLowerInvariant();
@@ -100,16 +100,18 @@ namespace WordStat
                 {
                     if (words.Length == 1)
                     {
-                        //result = engine.GetWordVector(words[0], false).FrequencyEnvironment();
                         var word = engine.GetWordVector(request, false);
-                        result = engine.FindSynonyms(word, 10);
                         Console.WriteLine(word.Length);
+
+                        //result = engine.FindSynonyms(word, 10);
+
+                        result = engine.GetWordVector(words[0], false).FrequencyEnvironment().Take(100);
                     }
                     else if (words.Length == 3)
                     {
                         var word0 = engine.GetWordVector(words[0], false);
                         var word1 = engine.GetWordVector(words[1], false);
-                        var word2 = engine.GetWordVector(words[1], false);
+                        var word2 = engine.GetWordVector(words[2], false);
                         result = engine.FindSynonyms(word0 + word1 - word2, 10);
                     }
                     else

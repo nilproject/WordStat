@@ -2,7 +2,7 @@
   "profiles": {
     "WordStat": {
       "commandName": "Project",
-      "workingDirectory": "C:\\Users\\Дмитрий\\Documents\\Visual Studio 2017\\Projects\\WordStat\\src\\WikipediaTopicDownloader\\wikipedia"
+      "workingDirectory": "C:\\Users\\Дмитрий\\Documents\\Visual Studio 2017\\Projects\\WordStat\\src\\HabaTopicDownloader\\habrahabr"
     }
   }
 }

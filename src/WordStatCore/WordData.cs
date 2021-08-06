@@ -169,7 +169,6 @@ namespace WordStatCore
                     {
                         keysSet.Remove(item.Key.Id);
                     }
-                    System.Diagnostics.Debugger.Break();
                 }
 
                 skipList = list;
@@ -360,7 +359,6 @@ namespace WordStatCore
             return skipList
                 .OrderByDescending(x => x.Value)
                 .Select(x => new KeyValuePair<string, double>(x.Key.Word, x.Value / Length))
-                .Take(10)
                 .ToArray();
         }
     }
